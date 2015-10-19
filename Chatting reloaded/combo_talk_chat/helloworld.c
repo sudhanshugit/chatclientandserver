@@ -1,0 +1,475 @@
+#include <glib.h>
+#include <glib/gprintf.h>
+#include <pthread.h> // thread creation :)
+#include <gtk/gtk.h>  // gui :)
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <errno.h>
+#include <signal.h>
+#include <netdb.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include "listen_sound.h"
+#include "speak_sound.h"
+//#include "ip_check.h"
+#define MYPORT "3228"
+/* this struct is for voice chat      *
+ * i tried different method to copy   *
+ * from same struct type using strcpy *
+ * but it didnt work so this          */
+struct arg_talk{
+	char ip[20];
+	char me_id[50];
+	char u_id[50];
+	int talkfd;
+}data_voice;
+/*this struct is for flow of data from *
+ *one function to other or even thread */
+struct args
+{
+ gchar *ip;
+ gchar *port;
+ gchar *u_id;
+ gchar *me_id;
+ gchar *msg_r;
+ gchar *msg_s;
+ gchar *u_id1;
+ int sockfd;
+ //int talkfd;
+ //int fd_chat;
+ //int fd_gui;
+ // FILE* fd_chat,*fd_gui;
+ GtkWidget *entry_ip,*entry_port,*entry_me,*entry_u,*entry1,*entry2;
+};
+void *connect_talk(void *);
+ // function for destroying the widgets for chat .....
+void destroy( GtkWidget *widget,
+              struct args *data)
+{
+    send(data->sockfd,"exit",200,0);
+    gtk_main_quit();
+}
+///////////////////////////////////////////////////////////
+void voice_talk(GtkWidget *widget,struct arg_talk *data) {
+	//struct args *data_voice=(struct args *)data;
+
+	puts("voice_talk :) up and working");
+	puts(data_voice.ip);
+	puts(data_voice.me_id);
+	puts(data_voice.u_id);
+	pthread_t thread_talk,thread_speak,thread_listen;
+	puts("________from here thread starts________:)");
+        pthread_create(&thread_talk,NULL,&connect_talk,&data_voice);
+	sleep(2);
+	puts("________from here thread for speaking starts______:)");
+	//puts("________from here thread for listening starts______:)");
+	pthread_create(&thread_speak,NULL,&speak_sound,&data_voice.talkfd);
+	puts("________from here thread for listening starts______:)");
+	pthread_create(&thread_listen,NULL,&listen_sound,&data_voice.talkfd);
+	
+}
+
+void *connect_1(void *);
+// this one is to start a separate loop detect so that it will help in 
+// shooting data to server....
+void sending_server(GtkWidget *widget,struct args *data)
+{
+	data->msg_s=gtk_entry_get_text(GTK_ENTRY(widget));
+	char msgs_name[200];
+	//strcpy(msgs_name,"")
+	send(data->sockfd,data->msg_s,200,0);
+		if (!strcmp(data->msg_s,"exit"))
+			destroy(data->entry1,data);
+//	puts(data->msg_s);
+	char msgs[210];
+	strcpy(msgs,"me :: ");
+//
+	strcat(data->msg_s,"\n");
+	strcat(msgs,data->msg_s);
+
+	GtkTextBuffer *buffer;
+	GtkTextMark *mark;
+	GtkTextIter iter;
+//
+	buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(data->entry1));
+//
+	mark=gtk_text_buffer_get_insert(buffer);
+	gtk_text_buffer_get_iter_at_mark(buffer,&iter,mark);
+	gtk_text_buffer_insert(buffer,&iter,msgs,-1);
+
+	gtk_entry_set_text(GTK_ENTRY (widget),"");
+}
+void *recv_server(void *abc)
+{
+	struct args *data=(struct args *)abc;
+	puts("in print_inbox");
+	char msgp[200];
+	strcpy(msgp,data->u_id1);
+	strcat(msgp,":: ");
+	puts(data->u_id1);
+	char msgr[200];
+//	char msgp[200];
+	while(1)
+	{
+		recv(data->sockfd,msgr,200,0);
+		if (!strcmp(msgr,"exit"))
+			destroy(data->entry1,data);
+		puts("after recv");
+
+		puts(msgp);
+//
+		strcat(msgr,"\n");
+		//strcat(msgr,"")
+		if(strcmp(msgr,"exit")==0)
+			break;
+
+	GtkTextBuffer *buffer;
+        GtkTextMark *mark;
+        GtkTextIter iter;
+
+	buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(data->entry1));
+
+        mark=gtk_text_buffer_get_insert(buffer);
+        gtk_text_buffer_get_iter_at_mark(buffer,&iter,mark);
+        gtk_text_buffer_insert(buffer,&iter,msgp,-1);
+
+        buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(data->entry1));
+        mark=gtk_text_buffer_get_insert(buffer);
+        gtk_text_buffer_get_iter_at_mark(buffer,&iter,mark);
+        gtk_text_buffer_insert(buffer,&iter,msgr,-1);
+	}
+
+}
+///// explained at the definition....
+void connect_server(GtkWidget *widget, struct args *data);
+// to close the window any one :) ka boom destroyed
+gint delete_event( GtkWidget *widget,
+                   GdkEvent  *event,
+		   gpointer   data )
+{
+
+    g_print ("delete event occurred\n");
+    return(TRUE);
+}
+
+// this function is meant for starting a separate new window for chating....
+void talk(struct args *data)
+{
+//    	struct arg_talk data_voice;
+    	strcpy(data_voice.ip,data->ip);
+    	strcpy(data_voice.me_id,data->me_id);
+    	strcpy(data_voice.u_id,data->u_id);
+    //data_voice=data;
+//    data_voice.
+    	puts("step 1");
+    	puts(data_voice.u_id);
+    //g_print ("Hello World\n");
+ //   struct args *data_voice;
+//    data_voice = data;
+//    puts(data->me_id);
+    	GtkWidget *window2;
+    	GtkWidget *button1;
+    	GtkWidget *button_talk;
+    	GtkWidget *table;
+    	GtkWidget *entry1,*entry2;
+    	GtkWidget *scroller;
+    	GtkWidget *label,*label2;
+//    GtkWidget *view;
+    	GtkTextBuffer *buffer;
+	pthread_t thread_id;
+        pthread_create(&thread_id,NULL,&recv_server,data);
+
+	window2=gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    	gtk_window_set_resizable(GTK_WINDOW(window2),FALSE);
+    	gtk_signal_connect (GTK_OBJECT (window2), "destroy",
+                      GTK_SIGNAL_FUNC (destroy), NULL);
+    	puts("step 2");
+    	gtk_container_set_border_width(GTK_CONTAINER(window2),20);
+    	table=gtk_table_new(15,15,TRUE);
+    	gtk_container_add(GTK_CONTAINER(window2),table);
+     	gtk_widget_set_size_request(table,400,250);
+    	gtk_table_set_row_spacings(GTK_TABLE(table),10);
+    	gtk_widget_show(table);
+    	gchar *server_msg;
+
+    	label2=gtk_label_new("**welcome to sudhanshu's chat client**");
+    	gtk_table_attach_defaults(GTK_TABLE(table),label2,0,15,0,1);
+    	gtk_widget_show(label2);
+
+    	data->entry1 = gtk_text_view_new();
+    	GtkWidget *scroll = gtk_scrolled_window_new(NULL,NULL);
+    	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);
+    	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scroll),data->entry1);
+    	GIOChannel *sfd;
+	sfd=g_io_channel_unix_new(data->sockfd);
+
+    	gtk_text_view_set_editable(GTK_TEXT_VIEW(data->entry1),FALSE);
+    	gtk_widget_set_size_request(scroll,350,150);
+
+    	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(data->entry1),GTK_WRAP_CHAR);
+    	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(data->entry1),0);
+    	int x;
+
+        gchar msgr[200];
+	puts("step 3");
+
+    	GtkWidget *fix=gtk_alignment_new(0.5,0.2,1,0);
+    	gtk_container_add(GTK_CONTAINER(fix),scroll);
+    	gtk_table_attach_defaults(GTK_TABLE(table),fix,0,14,1,12);
+    	gtk_widget_show(scroll);
+    	gtk_widget_show(fix);
+    	gtk_widget_show(data->entry1);
+  /*******************lable***********************************************/
+    	label=gtk_label_new("CHAT");
+    	gtk_table_attach_defaults(GTK_TABLE(table),label,0,2,12,13);
+    	gtk_widget_show(label);
+  /*--------------------text area two------------------------------------*/
+    	data->entry2=gtk_entry_new_with_max_length(200);
+    	gtk_signal_connect(GTK_OBJECT(data->entry2),"activate",
+				GTK_SIGNAL_FUNC(sending_server),
+				(struct args *)data);
+    	gtk_table_attach_defaults(GTK_TABLE(table),data->entry2,2,15,12,13);
+    	gtk_widget_show(data->entry2);
+  /*-----------------------------text areas ends--------------------------*/
+    	button1=gtk_button_new_with_label("exit");
+    	gtk_signal_connect(GTK_OBJECT(button1),"clicked",
+                         GTK_SIGNAL_FUNC(destroy),NULL);
+    	gtk_table_attach_defaults(GTK_TABLE(table),button1,13,15,13,15);
+/////////////////////////////////////////////////////////////////////////////
+    	button_talk=gtk_button_new_with_label("talk");
+    	puts("before calling voice talk");puts(data_voice.ip);
+    	gtk_signal_connect(GTK_OBJECT(button_talk),"clicked",
+                         GTK_SIGNAL_FUNC(voice_talk),
+			NULL);
+    gtk_signal_connect_object (GTK_OBJECT (button_talk), "clicked",
+                               GTK_SIGNAL_FUNC (gtk_widget_destroy),
+                               GTK_OBJECT (button_talk));
+
+    	gtk_table_attach_defaults(GTK_TABLE(table),button_talk,5,11,13,15);
+    	gtk_widget_show(button1);
+    	gtk_widget_show(button_talk);
+    	gtk_widget_show(window2);
+    //gtk_widget_show_all(table);
+}
+
+/*void get_entry_callback(GtkWidget *widget, gpointer data)
+
+}*///*****main function starts here for the first box of ip port and names*****/
+int main( int   argc,
+          char *argv[] )
+{
+    GtkWidget *window;
+    GtkWidget *button;
+    GtkWidget *button1;
+    GtkWidget *vbox, *hbox;
+    GtkWidget *label;
+//    gchar *ip,*port,*u_id,*me_id;
+    int fl;
+    struct args user_input;
+ //   gchar *x;
+    gtk_init(&argc, &argv);
+    window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_resizable(GTK_WINDOW(window),FALSE);
+    gtk_signal_connect (GTK_OBJECT (window), "delete_event",
+			GTK_SIGNAL_FUNC (destroy), NULL);
+    //gtk_signal_connect (GTK_OBJECT (window), "destroy",
+//			GTK_SIGNAL_FUNC (destroy), NULL);
+    gtk_container_set_border_width (GTK_CONTAINER (window), 10);
+    vbox=gtk_vbox_new(FALSE,0);
+    gtk_container_add(GTK_CONTAINER(window),vbox);
+//    gtk_widget_show(vbox);
+    //gtk_box_pack_start(GTK_BOX vbox,)
+/*-----------------------------for ip-----------------------------------------*/
+    hbox=gtk_hbox_new(FALSE,0);
+//    gtk_container_add(GTK_CONTAINER(vbox),hbox);
+    label=gtk_label_new("IP ADDRESS::    ");
+    gtk_box_pack_start(GTK_BOX(hbox),label,FALSE,FALSE,0);
+    gtk_widget_show(label);
+    user_input.entry_ip=gtk_entry_new_with_max_length(50);
+    gtk_entry_set_text( GTK_ENTRY (user_input.entry_ip),"127.0.0.1");
+
+    //user_input.ip=gtk_entry_get_text(GTK_ENTRY (user_input.entry_ip));
+    //printf("adf %s\n",user_input.ip);
+    gtk_box_pack_start(GTK_BOX(hbox),user_input.entry_ip,TRUE,TRUE,0);
+    gtk_widget_show(user_input.entry_ip);
+    gtk_box_pack_start(GTK_BOX(vbox),hbox,TRUE,TRUE,0);
+    gtk_widget_show(hbox);
+
+/*--------------------------------for your id/me----------------------------*/
+    hbox=gtk_hbox_new(FALSE,0);
+    //gtk_container_add(GTK_CONTAINER(vbox),hbox);
+    label=gtk_label_new("YOUR ID   ::     ");
+    gtk_box_pack_start(GTK_BOX(hbox),label,FALSE,FALSE,0);
+    gtk_widget_show(label);
+    user_input.entry_me=gtk_entry_new_with_max_length(50);
+   gtk_entry_set_text( GTK_ENTRY (user_input.entry_me),"sudhanshu");
+    //user_input.me_id=gtk_entry_get_text(GTK_ENTRY (user_input.entry_me));
+    gtk_box_pack_start(GTK_BOX(hbox),user_input.entry_me,TRUE,TRUE,0);
+    gtk_widget_show(user_input.entry_me);
+    gtk_box_pack_start(GTK_BOX(vbox),hbox,TRUE,TRUE,0);
+    gtk_widget_show(hbox);
+/*-----------------------------for your friends id-------------------------*/
+    hbox=gtk_hbox_new(FALSE,0);
+    //gtk_container_add(GTK_CONTAINER(vbox),hbox);
+    label=gtk_label_new("FREINDS ID ::   ");
+    gtk_box_pack_start(GTK_BOX(hbox),label,FALSE,FALSE,0);
+    gtk_widget_show(label);
+    user_input.entry_u=gtk_entry_new_with_max_length(50);
+    gtk_entry_set_text( GTK_ENTRY (user_input.entry_u),"kumar");
+   // user_input.u_id=gtk_entry_get_text(GTK_ENTRY (user_input.entry_u));
+    gtk_box_pack_start(GTK_BOX(hbox),user_input.entry_u,TRUE,TRUE,0);
+    gtk_widget_show(user_input.entry_u);
+    gtk_box_pack_start(GTK_BOX(vbox),hbox,TRUE,TRUE,0);
+    gtk_widget_show(hbox);
+/*-----------------------------------------------------------------------*/
+
+    button = gtk_button_new_with_label ("Connect");
+    gtk_signal_connect (GTK_OBJECT (button), "clicked",
+			GTK_SIGNAL_FUNC (connect_server), 
+			(struct args *)&user_input);
+    gtk_signal_connect_object (GTK_OBJECT (button), "clicked",
+			       GTK_SIGNAL_FUNC (gtk_widget_destroy),
+			       GTK_OBJECT (window));
+
+    gtk_box_pack_start(GTK_BOX (vbox),button,TRUE,TRUE,0);
+
+        gtk_widget_show (button);
+
+    button1=gtk_button_new_with_label("extra");
+    gtk_box_pack_start(GTK_BOX(vbox),button1,TRUE,TRUE,0);
+    gtk_widget_show(button1);
+    gtk_widget_show(vbox);
+    gtk_widget_show (window);
+
+    gtk_main ();
+    return(0);
+}
+///// this one is to serve the purpose of connection thats it....	//
+void connect_server(GtkWidget *widget, struct args *data)
+{
+	puts("connect");
+        GtkWidget *window3;
+        GtkWidget *label1,label2,label3;
+	data->ip=gtk_entry_get_text(GTK_ENTRY (data->entry_ip));
+	//data->port=gtk_entry_get_text(GTK_ENTRY (data->entry_port));
+	data->me_id=gtk_entry_get_text(GTK_ENTRY (data->entry_me));
+	data->u_id1=data->u_id=gtk_entry_get_text(GTK_ENTRY (data->entry_u));
+	puts(data->u_id1);
+
+//creating a thread just because a single process cannot 	//
+//handle more than a fixed number of file descriptors :)	//
+//i am intelligent courtsy krishna				//
+	pthread_t thread_id;
+	pthread_create(&thread_id,NULL,&connect_1,data);
+	sleep(2); //for the function to wait for the last thread to finish execution..........
+	talk(data);
+	pthread_join(thread_id,NULL);
+
+}
+// this function  used in new thread to avoid the file restriction	//
+// posed that is 20/ process :) smart move....				//
+// this functions sends the required data also to the server		//
+// for particular fifo files						//
+void *connect_1(void *data1)
+{
+
+	puts("y u no come hrere");
+	struct args* data=(struct args *)data1;
+	puts(data->u_id1);
+        puts(data->u_id);
+        puts(data->me_id);
+	FILE *fd1,*fd2;
+        char ip[20],ip1[20];
+        strcpy(ip,data->ip);
+	strcpy(ip1,data->ip);
+        int sockfd;
+        char msg[200];
+
+	int err=errno;
+	perror("socket");
+
+	int status;
+	struct addrinfo hints;
+	struct addrinfo *res;
+	memset(&hints,0,sizeof(hints));
+	hints.ai_family=AF_UNSPEC;
+	hints.ai_socktype =SOCK_STREAM;
+	status= getaddrinfo(ip,MYPORT,&hints,&res);
+	sockfd=socket(res->ai_family,res->ai_socktype,res->ai_protocol);
+	if (sockfd==-1) 
+	{perror("socket");exit(1);}
+//	res->ai_addr->sin_addr.s_addr=inet_addr(ip);
+	int status_con=connect(sockfd,res->ai_addr,res->ai_addrlen);
+//	puts(res->ai_addr);
+	if (status_con==-1)
+	{perror ("connect");exit(1);}
+//	puts(res->ai_addr);
+
+//	 end of connect and socket//
+        puts("connected\n");
+        char msg_srvr[200];
+        recv(sockfd,msg_srvr,200,0);
+        puts(msg_srvr);
+        send(sockfd,data->me_id,50,0);// my name
+        send(sockfd,data->u_id,50,0);// my friend's name
+	data->sockfd=sockfd;
+	//GIOChannel *sfd;
+	//sfd= g_io_channel_unix_new(sockfd);
+//	g_io_add_watch(sfd,)
+}
+void *connect_talk(void *data1)
+{
+
+        puts("y u no come hrere");
+        struct arg_talk* data=(struct arg_talk *)data1;
+        //puts(data->u_id1);
+        puts(data->u_id);
+        puts(data->me_id);
+        FILE *fd1,*fd2;
+        char ip[20],ip1[20],talkuid[50],talkmeid[50];
+        strcpy(ip,data->ip);
+        strcpy(ip1,data->ip);
+	strcpy(talkuid,data->u_id);
+	strcpy(talkmeid,data->me_id);
+	strcat(talkuid,"_talk");
+	strcat(talkmeid,"_talk");
+	puts(talkuid);
+	puts(talkmeid);
+        int talkfd;
+        char msg[200];
+        int err=errno;
+        perror("socket");
+        int status;
+        struct addrinfo hints;
+        struct addrinfo *res;
+        memset(&hints,0,sizeof(hints));
+        hints.ai_family=AF_UNSPEC;
+        hints.ai_socktype =SOCK_STREAM;
+        status= getaddrinfo(ip,MYPORT,&hints,&res);
+        talkfd=socket(res->ai_family,res->ai_socktype,res->ai_protocol);
+        if (talkfd==-1)
+        {perror("socket");exit(1);}
+//      res->ai_addr->sin_addr.s_addr=inet_addr(ip);
+        int status_con=connect(talkfd,res->ai_addr,res->ai_addrlen);
+//      puts(res->ai_addr);
+        if (status_con==-1)
+        {perror ("connect");exit(1);}
+//      puts(res->ai_addr);
+//       end of connect and socket//
+        puts("connected\n");
+        char msg_srvr[200];
+        recv(talkfd,msg_srvr,200,0);
+        puts(msg_srvr);
+        send(talkfd,talkmeid,50,0);// my name
+        send(talkfd,talkuid,50,0);// my friend's name
+        data->talkfd=talkfd;
+        //GIOChannel *sfd;
+        //sfd= g_io_channel_unix_new(sockfd);
+//      g_io_add_watch(sfd,)
+}
+

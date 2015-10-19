@@ -1,0 +1,17 @@
+to install lib-gtk 3
+command:
+$ sudo apt-get install libgtk-3-dev
+
+
+to compile gtk application
+comamnd:
+$ gcc version.c -o version `pkg-config --cflags --libs gtk+-3.0`
+$ gcc helloworld.c -o version -lpthread `pkg-config --cflags --libs gtk+-2.0`
+
+
+
+compiling with lpthread and alsa sound 
+$ gcc helloworld.c -o version -lpthread -lasound `pkg-config --cflags --libs gtk+-2.0`
+
+
+

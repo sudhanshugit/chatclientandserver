@@ -1,0 +1,30 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+struct Node
+{
+	int data;
+	struct Node *next;
+};
+
+void Push(struct Node *_node,int data)
+{
+	_node->next = (struct Node *)malloc(sizeof(struct Node));
+	_node->next->data = data;
+}
+struct Node * TraverseToTail(struct Node *head)
+{
+	struct Node *tail;
+	struct Node *currNode;
+	while(currNode->next != NULL)
+	{
+		currNode = currNode->Next;
+	}
+	tail = curNode;
+	return tail;
+}
+
+int main()
+{
+	
+}
